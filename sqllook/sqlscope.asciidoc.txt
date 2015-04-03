@@ -1,0 +1,225 @@
+NAME
+    sqlscope - sql feature extractor
+
+SYNOPSIS
+    sqlscope -i <inputfile> -o <outputfile> -r 'QUERYNUM,QUERY' -w
+    'TABLE_COMPARISON_VECTOR,QUERY' -v 3 -c 'QUERYNUM' -t <totalsfile> -g
+    <groupingsfile> -f <tablefile>
+
+    options in the example: -i <inputfile> - the input file, a CSV
+    containing at least the queries to be processed, if missing uses STDIN
+    -o <outputfile> - the output file a CSV containing fields from the input
+    plus features,tables used and query structure, if missing uses STDOUT -r
+    'QUERYNUM,QUERY' - the fields on the input... must have at least QUERY
+    the names given will be used for other switches, if missing, assumes
+    just QUERY -w 'TABLE_COMPARISON_VECTOR,QUERY' - the fields to output,
+    the full list of opions are given below , if missing, writes ALL fields
+    -v 3 - the verbosity of output, 0-7 with 7 being the maximum -c
+    'QUERYNUM' - coalesces multiple rows into asingle SQL statement, using
+    the given list of fields to decide when to start a new SQL statement -t
+    <totalfile> - file to write various counts to, specified in a groupfile
+    (next option)... t & g must be used together (it catches this) -g
+    <groupfile> - an ini file that allows you to name aggregates (counts)
+    and specify the "group by" fields to use.
+
+OPTIONS
+  -i <inputfile> optional
+    The input file, a CSV containing at least the queries to be processed,
+    if missing uses STDIN. The CSV details can be configured with the -d -s
+    -q -e switches and the -r switch is used to determine the contents of
+    the CSV fields.
+
+  -o <outputfile> optional
+    The output file, a CSV that can then be processed further using other
+    tools, including viewing in a spreadsheet or loading to a database. The
+    fields in the output are determined by the -r switch. If it is opitted,
+    it defaults to writing out all of the available fields (including the
+    input, individual features and four "vectors". For individual features,
+    the value is a count of the number of times a regular expression for
+    that features caugh something. This does NOT necessarily correlate
+    exactly to the number of instances of a feature that you would see
+    looking at the SQL. The vectors are:
+
+    FEATURE_VECTOR - An array of counts representing the counts of features
+    present. The key is that it is consistently ordered, so that queries'
+    "similarity" can be assessed.
+
+    'FEATURE_VECTOR' =>
+    '04800000000006000000100000300000000100400000000300002400000000203901800
+    0018000000000000000'
+
+    TABLE_VECTOR - An array of space separated tablenames that appear in the
+    SQL.
+
+    'TABLE_VECTOR' => 'AC2T0010_CLAIM AC2T0060_SUMMARY'
+
+    TABLE_COMPARISON_VECTOR - An array of single digit flags that indicate
+    the presence or absense of a tablename in a query. It is sorted by table
+    name alphabetically.
+
+    'TABLE_COMPARISON_VECTOR' =>
+    '10000000000010000000000000000000000000000000000000000000000000000000000
+    00000000000000000000000000000'
+
+    STRUCTURE_VECTOR - A translation of an SQL statement into a more compact
+    and abstract form that can be used to identify "similar" queries in a
+    different way. Many statment components like "SELECT" are replaced with
+    a single letter, generally parentheses and comparison operators are
+    preserved as well. Most other stuff is elided. The result is an avstract
+    notion of the structure of an SQL statement that can be compared to
+    other statements. Interestingly it can sometimes be used to identify
+    queries that were built similarly even when to human eyes the similarity
+    is obscured in the full query text. Many databases have one or more
+    textual similarty algorithms that identify the minimum set of edits
+    between one string and another. When combined with these structure
+    vectors, this is very close to our intuitive notion of similar for SQL
+    queries. In the example below the structure vector translates as "Select
+    From Where = oRder".
+
+    "SELECT * FROM _v_odbc_gettypeinfo1 WHERE data_type = -2 ORDER BY
+    data_type, type_name" yields "SFW=R,"
+
+  -x
+    Excludes rows that do not have a table that matches the table list. This
+    helps to reduce the output.
+
+  -r 'fieldlist'  optional
+    A list of the fields to be read from the input, the names given will be
+    used for specifying output, totals and keys for coalescing queries. The
+    list is comma or colon separated and is NOT case sensitive. There must
+    be at least one column named QUERY. If no read format is specified, then
+    a single field QUERY is assumed.
+
+    -r
+    'NPSID,NPSINSTANCEID,OPID,SESSIONID,sequenceid,USERNAME,SUBMITTIME,FINIS
+    HTIME,DBNAME,QUERY'
+
+            -r 'QUERYNUM,QUERY' - the fields on the input... must have at least QUERY the names given will be used for other switches, if missing, assumes just QUERY
+            -w 'TABLE_COMPARISON_VECTOR,QUERY' - the fields to output, the full list of opions are given below , if missing, writes ALL fields
+            -v 3 - the verbosity of output, 0-7 with 7 being the maximum
+            -c 'QUERYNUM' - coalesces multiple rows into asingle SQL statement, using the given list of fields to decide when to start a new SQL statement
+            -t <totalfile> - file to write various counts to, specified in a groupfile (next option)... t & g must be used together (it catches this)
+            -g <groupfile> - an ini file that allows you to name aggregates (counts) and specify the "group by" fields to use.
+
+DESCRIPTION
+    sqlscope is a tool for analyzing SQL statements such as those a database
+    or query tool might log. It assumes a character separated value format
+    for the file that contains the queries to be analyzed and provides
+    options for changing the separators, the quote and escape characters.
+    sqlscope uses simple regular expressions to identify features to allow
+    it to handle multiple SQL dialects and query fragments and to be easily
+    extended to identify more complex structures in SQL, such as equality
+    statements that compare to state codes. The tradeoff for this simplicity
+    is that its feature matching can be relatively easily fooled into false
+    positives (the reverse is much rarer).
+
+    sqlscope requires at minimum, a list of tables to look for and a list of
+    queries to process.
+
+    An input file might look like:
+
+    1,50,2436209,418374,-1,DIRKSA1,2011-08-04 03:21:50.500478,2011-08-04
+    03:21:50.500665,PCIT_AIMZ_VIEWS,set nz_encoding to 'utf8'
+    1,50,2436210,418374,-1,DIRKSA1,2011-08-04 03:21:50.501566,2011-08-04
+    03:21:50.501657,PCIT_AIMZ_VIEWS,set DateStyle to 'ISO'
+    1,50,2436211,418374,-1,DIRKSA1,2011-08-04 03:21:50.503513,2011-08-04
+    03:21:50.503835,PCIT_AIMZ_VIEWS,"select version(), 'ODBC Client Version:
+    Release 4.6.8 [Build 13111]', '32-bit', 'OS Platform: SunOS', 'OS
+    Username: hpsprod'" 1,50,2436212,418374,-1,DIRKSA1,2011-08-04
+    03:21:50.587112,2011-08-04 03:21:50.591474,PCIT_AIMZ_VIEWS,select
+    feature from _v_odbc_feature where spec_level = '3.5'
+    1,50,2436214,418374,-1,DIRKSA1,2011-08-04 03:21:50.727336,2011-08-04
+    03:21:50.731826,PCIT_AIMZ_VIEWS,"SELECT * FROM _v_odbc_gettypeinfo1
+    WHERE data_type = -2 ORDER BY data_type, type_name"
+
+    A table file might look like:
+
+    AC2T0010_CLAIM AC2T0020_WC_CLMNT AC2T0021_BDYPRT_CD AC2T0022_CAUSE_CD
+    AC2T0023_INJURY_CD AC2T0024_NATURE_CD AC2T0030_COVERAGE
+    AC2T0031_COV_DESC
+
+    The commandline to process this might look like:
+
+    cat input.sql | sqlscope -f scopetables.csv -r
+    'NPSID,NPSINSTANCEID,OPID,SESSIONID,sequenceid,USERNAME,SUBMITTIME,FINIS
+    HTIME,DBNAME,QUERY' -v 7 | more
+
+    The above commandline will produce extremely verbose debugging output to
+    STDERR (-v 7) as well as the following output to STDIN:
+
+    1,50,2436209,418374,-1,DIRKSA1,"2011-08-04 03:21:50.500478","2011-08-04
+    03:21:50.500665",PCIT_AIMZ_VIEWS,"set nz_encoding to
+    'utf8'",,,00000000000000000000000000000000000000000000000000000000000000
+    0000000000000000000000000000,0000000000000000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000
+    1,50,2436210,418374,-1,DIRKSA1,"2011-08-04 03:21:50.501566","2011-08-04
+    03:21:50.501657",PCIT_AIMZ_VIEWS,"set DateStyle to
+    'ISO'",,,000000000000000000000000000000000000000000000000000000000000000
+    000000000000000000000000000,00000000000000000000000000000000000000000000
+    00000000000000000000000000000000000000000000000000000000
+    1,50,2436211,418374,-1,DIRKSA1,"2011-08-04 03:21:50.503513","2011-08-04
+    03:21:50.503835",PCIT_AIMZ_VIEWS,"select version(), 'ODBC Client
+    Version: Release 4.6.8 [Build 13111]', '32-bit', 'OS Platform: SunOS',
+    'OS Username:
+    hpsprod'",,"SN(),,,,",00000000000000000000000000000000000000000000000000
+    0000000000000000000000000000000000000000,0000000000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000
+    1,50,2436212,418374,-1,DIRKSA1,"2011-08-04 03:21:50.587112","2011-08-04
+    03:21:50.591474",PCIT_AIMZ_VIEWS,"select feature from _v_odbc_feature
+    where spec_level =
+    '3.5'",1,1,,SFW=,0000000000000010000000000000000000000000000000000000000
+    00000000001000000000000000000000000,000000000000000000000000000000000000
+    0000000000000000000000000000000000000000000000000000000000000000
+    1,50,2436214,418374,-1,DIRKSA1,"2011-08-04 03:21:50.727336","2011-08-04
+    03:21:50.731826",PCIT_AIMZ_VIEWS,"SELECT * FROM _v_odbc_gettypeinfo1
+    WHERE data_type = -2 ORDER BY data_type,
+    type_name",2,1,1,1,,"SFW=R,",0000000000000020000000000000000000000000000
+    00000000000000000000001001000001000000000000000,000000000000000000000000
+    000000000000000000000000000000000000000000000000000000000000000000000000
+    0000
+
+DIAGNOSTICS and MODIFICATION
+    Every effort has been made to have reasonably informative error messages
+    for common issues. The switch -v 7 will produce voluminous debugging
+    output.
+
+    When you are modifying the internal regular expressions for whatever
+    purpose, turning on the debugging output will allow you to see what the
+    regexes are capturing:
+
+    2012/08/17 17:33:04 CSV parsed input line:$VAR1 = [ 'SELECT
+    SUM(COLUMN1), COUNT(*) as CNT FROM TABLE1' ]; 2012/08/17 17:33:04
+    Feature Test: MULTIPLE_WILDCARD :$VAR1 = []; 2012/08/17 17:33:04 Feature
+    Test: EXPLICIT_RANGE_QUERY :$VAR1 = []; 2012/08/17 17:33:04 Feature
+    Test: UNION_STATEMENT :$VAR1 = []; 2012/08/17 17:33:04 Feature Test:
+    AGGREGATION :$VAR1 = [ ' SUM(', ' COUNT(' ]; 2012/08/17 17:33:04 Feature
+    Test: CONTAINS_SELECT_STATEMENT :$VAR1 = []; 2012/08/17 17:33:04 Feature
+    Test: MANY_LITERALS :$VAR1 = []; 2012/08/17 17:33:04 Feature Test:
+    LOGICAL_AND :$VAR1 = []; 2012/08/17 17:33:04 Feature Test:
+    UPDATE_STATEMENT :$VAR1 = []; 2012/08/17 17:33:04 Feature Test:
+    ANSI_RIGHT_OUTER_JOIN :$VAR1 = []; 2012/08/17 17:33:04 Feature Test:
+    ANSI_LEFT_OUTER_JOIN :$VAR1 = []; 2012/08/17 17:33:04 Feature Test:
+    WINDOW_QUERY :$VAR1 = []; 2012/08/17 17:33:04 Feature Test: COUNT :$VAR1
+    = [ ' COUNT(' ];
+
+    The most common issue seems to be having the number of matched items not
+    matching expectations... So looking at the AGGREGATION expression:
+
+    ,'AGGREGATION'=> qr{((?:[ ,(+\-*/]SUM[ (])|(?:[ ,(+\-*/]MIN[ (])|(?:[
+    ,(+\-*/]MAX[ (])|(?:[ ,(+\-*/]AVG[ (])|(?:[ ,(+\-*/]COUNT[ (]))}i
+
+    The expression originally returned several undefined items in addition
+    to the SUM and count shown above. Adding (?: into each of the regex
+    groupings below the top level eliminated the false positives.
+
+    So what does this actually produce in output?
+
+    002000000 ... as you would expect!
+
+    If you want to add your own features, just edit the perl code and add
+    lines similar to the AGGREGATION line you see above. The leading comma
+    is required. Because the regexes are evaluated in isolation, there is no
+    interaction between them (see I TOLD you it was simple!).
+
+SEE ALSO
+LICENSE
